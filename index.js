@@ -25,6 +25,30 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
+
+
+    const productCollection = client.db('techDB').collection('products');
+
+    app.get('/products', async (req, res) => {
+      const cursor = productCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
+    app.get('/products/:id', async (req, res) => {
+      const productId = req.params.id;
+      const product = await productCollection.findOne({ _id: productId });
+      res.json(product)
+    })
+
+
+
+
+
+
+
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -36,9 +60,9 @@ async function run() {
 run().catch(console.dir);
 
 
-app.get('/',(req, res)=>{
-    res.send('server-12 is running')
+app.get('/', (req, res) => {
+  res.send('server-12 is running')
 })
-app.listen(port, ()=>{
-    console.log(`Server is running on port: ${port}`);
+app.listen(port, () => {
+  console.log(`Server is running on port: ${port}`);
 })
