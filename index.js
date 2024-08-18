@@ -28,14 +28,36 @@ async function run() {
 
 
     const productCollection = client.db('techDB').collection('products');
-
+    
     app.get('/products', async (req, res) => {
       const cursor = productCollection.find();
       const result = await cursor.toArray();
       res.send(result);
     })
+    
+    app.get('/products/:id', async (req, res) => {
+      const productId = req.params.id;
+      const product = await productCollection.findOne({ _id: productId });
+      res.json(product)
+    })
+    
+
+    //search functionality
+    app.get('/search', async(req, res)=>{
+      const query = req.query.q;
+      const searchResult = await productCollection.find({
+        tags: {$regex:query, $options: 'i'}
+      }).toArray();
+      res.json(searchResult)
+      })
 
     
+    const reviewCollection = client.db('techDB').collection('posted_reviews');
+
+
+
+
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
