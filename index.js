@@ -2,7 +2,10 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const app = express();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
+
+const jwt = require('jsonwebtoken');
 
 //middleware
 app.use(cors());
@@ -108,9 +111,9 @@ async function run() {
 
       res.send({ paymentResult, deleteResult })
     })
-    
 
-    const reviewCollection = client.db('techDB').collection('posted_reviews');
+
+    // const reviewCollection = client.db('techDB').collection('posted_reviews');
 
 
 
