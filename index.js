@@ -52,12 +52,14 @@ async function run() {
       })
 
     
-      app.post('/jwt', async (req, res) => {
-        const user = req.body;
-        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-        res.send({ token })
-      })
+
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+      res.send({ token })
+    })
     
+
     // middlewares
     const verifyToken = (req, res, next) => {
       console.log(req.headers);
@@ -73,7 +75,41 @@ async function run() {
         next();
       })
     }
-      
+
+    app.post('/create-payment-intent', async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
+
+    const paymentCollection = client.db('bistroDB').collection('payments');
+    app.post('/payments', async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+
+      //carefully delete each item from cart
+      console.log('payment info', payment);
+      const query = {
+        _id: {
+          $in: payment.cartIds.map(id => new ObjectId(id))
+        }
+      }
+
+      const deleteResult = await cartCollection.deleteMany(query);
+
+      res.send({ paymentResult, deleteResult })
+    })
+    
+
     const reviewCollection = client.db('techDB').collection('posted_reviews');
 
 
