@@ -44,6 +44,30 @@ async function run() {
       res.json(product)
     })
     
+    app.post('/products', async (req, res) => {
+      const newProduct = req.body;
+      console.log(newProduct);
+      const result = await productCollection.insertOne(newProduct);
+      res.send(result);
+    })
+    
+    app.get('/products/:id', async(req,res)=>{
+      const productId = req.params.id;
+      const query = {_id: productId}
+      const result = await productCollection.findOne(query);
+      res.send(result)
+    })
+
+    app.get('/user/products', async (req, res) => {
+      const { email } = req.query;
+    
+      if (!email) {
+        return res.status(400).send('Email is required');
+      }
+    
+      const userProducts = await productCollection.find({ 'owner.email': email }).toArray();
+      res.send(userProducts);
+    });
     
     //search functionality
     app.get('/search', async(req, res)=>{
@@ -55,7 +79,6 @@ async function run() {
       })
 
     
-
     app.post('/jwt', async (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
@@ -116,7 +139,6 @@ async function run() {
 
     // const memberCollection = client.db('techDB').collection('members');
     // const reviewCollection = client.db('techDB').collection('posted_reviews');
-
 
 
 
