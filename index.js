@@ -94,7 +94,9 @@ async function run() {
       })
     })
 
+
     const paymentCollection = client.db('bistroDB').collection('payments');
+
     app.post('/payments', async (req, res) => {
       const payment = req.body;
       const paymentResult = await paymentCollection.insertOne(payment);
@@ -107,12 +109,12 @@ async function run() {
         }
       }
 
-      const deleteResult = await cartCollection.deleteMany(query);
+      const deleteResult = await paymentCollection.deleteMany(query);
 
       res.send({ paymentResult, deleteResult })
     })
 
-
+    // const memberCollection = client.db('techDB').collection('members');
     // const reviewCollection = client.db('techDB').collection('posted_reviews');
 
 
