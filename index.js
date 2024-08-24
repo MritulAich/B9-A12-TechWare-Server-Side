@@ -30,6 +30,22 @@ async function run() {
     // await client.connect();
 
 
+     // middlewares
+     const verifyToken = (req, res, next) => {
+      console.log(req.headers);
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: 'unauthorized' })
+      }
+      const token = req.headers.authorization.split(' ')[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: 'unauthorized' })
+        }
+        req.decoded = decoded;
+        next();
+      })
+    }
+
     const productCollection = client.db('techDB').collection('products');
     
     app.get('/products', async (req, res) => {
@@ -69,6 +85,13 @@ async function run() {
       res.send(userProducts);
     });
     
+    app.delete('/products/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id }
+      const result = await productCollection.deleteOne(query);
+      res.send(result);
+    })
+
     //search functionality
     app.get('/search', async(req, res)=>{
       const query = req.query.q;
@@ -85,22 +108,8 @@ async function run() {
       res.send({ token })
     })
     
-
-    // middlewares
-    const verifyToken = (req, res, next) => {
-      console.log(req.headers);
-      if (!req.headers.authorization) {
-        return res.status(401).send({ message: 'unauthorized' })
-      }
-      const token = req.headers.authorization.split(' ')[1];
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-          return res.status(401).send({ message: 'unauthorized' })
-        }
-        req.decoded = decoded;
-        next();
-      })
-    }
+   
+    const paymentCollection = client.db('bistroDB').collection('payments');
 
     app.post('/create-payment-intent', async (req, res) => {
       const { price } = req.body;
@@ -116,9 +125,6 @@ async function run() {
         clientSecret: paymentIntent.client_secret
       })
     })
-
-
-    const paymentCollection = client.db('bistroDB').collection('payments');
 
     app.post('/payments', async (req, res) => {
       const payment = req.body;
