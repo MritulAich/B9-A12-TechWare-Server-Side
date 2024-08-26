@@ -29,10 +29,41 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
+    const productCollection = client.db('techDB').collection('products');
+    const paymentCollection = client.db('bistroDB').collection('payments');
+    const memberCollection = client.db('techDB').collection('members');
+    const reviewCollection = client.db('techDB').collection('posted_reviews');
+    const reportCollection = client.db('techDB').collection('reports');
 
-     // middlewares
-     const verifyToken = (req, res, next) => {
-      console.log(req.headers);
+    app.get('/products', async (req, res) => {
+      const cursor = productCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
+    app.get('/products/:id', async (req, res) => {
+      const productId = req.params.id;
+      const query = { _id: productId }
+      const result = await productCollection.findOne(query);
+      res.send(result)
+    })
+
+    app.post('/products', async (req, res) => {
+      const newProduct = req.body;
+      console.log(newProduct);
+      const result = await productCollection.insertOne(newProduct);
+      res.send(result);
+    })
+
+    app.delete('/products/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id }
+      const result = await productCollection.deleteOne(query);
+      res.send(result);
+    })
+
+    // middlewares
+    const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
         return res.status(401).send({ message: 'unauthorized' })
       }
@@ -45,71 +76,31 @@ async function run() {
         next();
       })
     }
-
-    const productCollection = client.db('techDB').collection('products');
-    
-    app.get('/products', async (req, res) => {
-      const cursor = productCollection.find();
-      const result = await cursor.toArray();
-      res.send(result);
-    })
-    
-    app.get('/products/:id', async (req, res) => {
-      const productId = req.params.id;
-      const product = await productCollection.findOne({ _id: productId });
-      res.json(product)
-    })
-    
-    app.post('/products', async (req, res) => {
-      const newProduct = req.body;
-      console.log(newProduct);
-      const result = await productCollection.insertOne(newProduct);
-      res.send(result);
-    })
-    
-    app.get('/products/:id', async(req,res)=>{
-      const productId = req.params.id;
-      const query = {_id: productId}
-      const result = await productCollection.findOne(query);
-      res.send(result)
-    })
-
-    app.get('/user/products', async (req, res) => {
-      const { email } = req.query;
-    
-      if (!email) {
-        return res.status(400).send('Email is required');
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded?.email;
+      const query = { email: email };
+      const member = await memberCollection.findOne(query);
+      if (member?.role !== 'admin') {
+        return res.status(403).send({ message: 'forbidden access' });
       }
-    
-      const userProducts = await productCollection.find({ 'owner.email': email }).toArray();
-      res.send(userProducts);
-    });
-    
-    app.delete('/products/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: id }
-      const result = await productCollection.deleteOne(query);
-      res.send(result);
-    })
+      next();
+    }
 
     //search functionality
-    app.get('/search', async(req, res)=>{
+    app.get('/search', async (req, res) => {
       const query = req.query.q;
       const searchResult = await productCollection.find({
-        tags: {$regex:query, $options: 'i'}
+        tags: { $regex: query, $options: 'i' }
       }).toArray();
       res.json(searchResult)
-      })
+    })
 
-    
     app.post('/jwt', async (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
       res.send({ token })
     })
-    
-   
-    const paymentCollection = client.db('bistroDB').collection('payments');
+
 
     app.post('/create-payment-intent', async (req, res) => {
       const { price } = req.body;
@@ -125,27 +116,75 @@ async function run() {
         clientSecret: paymentIntent.client_secret
       })
     })
-
     app.post('/payments', async (req, res) => {
       const payment = req.body;
+      console.log(payment);
       const paymentResult = await paymentCollection.insertOne(payment);
-
-      //carefully delete each item from cart
-      console.log('payment info', payment);
       const query = {
         _id: {
           $in: payment.cartIds.map(id => new ObjectId(id))
         }
       }
-
       const deleteResult = await paymentCollection.deleteMany(query);
-
       res.send({ paymentResult, deleteResult })
     })
 
-    // const memberCollection = client.db('techDB').collection('members');
-    // const reviewCollection = client.db('techDB').collection('posted_reviews');
+    //reports
+    app.post('/reports', async(req,res)=>{
+      const report = req.body;
+      const result=await reportCollection.insertOne(report);
+      res.send(result)
+    })
+    app.get('/reports', async (req, res) => {
+      const result = await reportCollection.find().toArray();
+      res.send(result);
+    })
 
+    app.post('/members', async (req, res) => {
+      const member = req.body;
+      const query = { email: member.email };
+      const existingMember = await memberCollection.findOne(query);
+      if (existingMember) {
+        return res.send({ message: 'member already exists', insertedId: null })
+      }
+      const result = await memberCollection.insertOne(member);
+      res.send(result);
+    })
+
+    app.get('/members', verifyAdmin, verifyToken, async (req, res) => {
+      const result = await memberCollection.find().toArray();
+      res.send(result);
+    });
+
+
+    app.patch('/members/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const updatedDoc = {
+        $set: { role: 'admin' }
+      };
+      const result = await memberCollection.updateOne({ _id: id }, updatedDoc);
+      res.send(result);
+    });
+
+    app.get('/members/admin/:email', verifyToken, verifyAdmin, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: 'forbidden access' })
+      }
+
+      const query = { email: email };
+      const member = await memberCollection.findOne(query);
+      let admin = false;
+      if (member) {
+        admin = member.role === 'admin';
+      }
+      res.send({ admin })
+    })
+
+
+
+    
+    
 
 
 
