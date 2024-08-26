@@ -32,8 +32,8 @@ async function run() {
     const productCollection = client.db('techDB').collection('products');
     const paymentCollection = client.db('bistroDB').collection('payments');
     const memberCollection = client.db('techDB').collection('members');
-    const reviewCollection = client.db('techDB').collection('posted_reviews');
     const reportCollection = client.db('techDB').collection('reports');
+    const myProductCollection = client.db('techDB').collection('my_products');
 
     app.get('/products', async (req, res) => {
       const cursor = productCollection.find();
@@ -60,6 +60,25 @@ async function run() {
       const query = { _id: id }
       const result = await productCollection.deleteOne(query);
       res.send(result);
+    })
+
+    app.put('/products/:id', async(req,res)=>{
+      const id = req.params.id;
+      const query = { _id: id };
+      const options = { upsert: true };
+      const updatedProduct = req.body;
+
+      const products = {
+        $set:{
+          name: updatedProduct.name,
+          image_url: updatedProduct.image_url,
+          description: updatedProduct.description,
+          tags: updatedProduct.tags,
+          external_link: updatedProduct.external_link,
+        }
+      }
+      const result = await productCollection.updateOne(query, products, options);
+      res.send(result)
     })
 
     // middlewares
@@ -130,15 +149,51 @@ async function run() {
     })
 
     //reports
-    app.post('/reports', async(req,res)=>{
+    app.post('/reports', async (req, res) => {
       const report = req.body;
-      const result=await reportCollection.insertOne(report);
+      const result = await reportCollection.insertOne(report);
       res.send(result)
     })
     app.get('/reports', async (req, res) => {
       const result = await reportCollection.find().toArray();
       res.send(result);
     })
+    app.get('/reports/:id', async (req, res) => {
+      const productId = req.params.id;
+      const query = { _id: productId };
+      const result = await myProductCollection.findOne(query);
+      res.send(result);
+    })
+    app.delete('/reports/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id }
+      const result = await reportCollection.deleteOne(query);
+      res.send(result);
+    })
+
+
+    app.post('/myProducts', async (req, res) => {
+      const report = req.body;
+      const result = await myProductCollection.insertOne(report);
+      res.send(result)
+    })
+    app.get('/myProducts', async (req, res) => {
+      const result = await myProductCollection.find().toArray();
+      res.send(result);
+    })
+    app.get('/myProducts/:id', async (req, res) => {
+      const productId = req.params.id;
+      const query = { _id: productId };
+      const result = await myProductCollection.findOne(query);
+      res.send(result);
+    })
+    app.delete('/myProducts/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id }
+      const result = await myProductCollection.deleteOne(query);
+      res.send(result);
+    })
+
 
     app.post('/members', async (req, res) => {
       const member = req.body;
@@ -183,8 +238,8 @@ async function run() {
 
 
 
-    
-    
+
+
 
 
 
