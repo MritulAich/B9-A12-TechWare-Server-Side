@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.S3_BUCKET}:${process.env.SECRET_KEY}@cluster0.ku98crh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -35,41 +35,38 @@ async function run() {
     const reportCollection = client.db('techDB').collection('reports');
     const myProductCollection = client.db('techDB').collection('my_products');
 
+
     app.get('/products', async (req, res) => {
       const cursor = productCollection.find();
       const result = await cursor.toArray();
       res.send(result);
     })
-
     app.get('/products/:id', async (req, res) => {
       const productId = req.params.id;
       const query = { _id: productId }
       const result = await productCollection.findOne(query);
       res.send(result)
     })
-
     app.post('/products', async (req, res) => {
       const newProduct = req.body;
       console.log(newProduct);
       const result = await productCollection.insertOne(newProduct);
       res.send(result);
     })
-
     app.delete('/products/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: id }
       const result = await productCollection.deleteOne(query);
       res.send(result);
     })
-
-    app.put('/products/:id', async(req,res)=>{
+    app.put('/products/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: id };
       const options = { upsert: true };
       const updatedProduct = req.body;
 
       const products = {
-        $set:{
+        $set: {
           name: updatedProduct.name,
           image_url: updatedProduct.image_url,
           description: updatedProduct.description,
@@ -81,29 +78,35 @@ async function run() {
       res.send(result)
     })
 
+
     // middlewares
     const verifyToken = (req, res, next) => {
-      if (!req.headers.authorization) {
+      const authorization = req.headers.authorization;
+      if (!authorization) {
         return res.status(401).send({ message: 'unauthorized' })
       }
       const token = req.headers.authorization.split(' ')[1];
       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
-          return res.status(401).send({ message: 'unauthorized' })
+          return res.status(403).send({ message: 'forbidden' })
         }
         req.decoded = decoded;
+        console.log('decoded token', decoded);
         next();
       })
     }
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded?.email;
+      console.log('Decoded token email:', email);
       const query = { email: email };
       const member = await memberCollection.findOne(query);
-      if (member?.role !== 'admin') {
-        return res.status(403).send({ message: 'forbidden access' });
+      console.log("Admin Check:", member);
+      if (!member || member.role !== "admin") {
+        return res.status(403).send({ message: 'admin only' });
       }
       next();
     }
+
 
     //search functionality
     app.get('/search', async (req, res) => {
@@ -121,6 +124,7 @@ async function run() {
     })
 
 
+    //payments
     app.post('/create-payment-intent', async (req, res) => {
       const { price } = req.body;
       const amount = parseInt(price * 100);
@@ -137,7 +141,6 @@ async function run() {
     })
     app.post('/payments', async (req, res) => {
       const payment = req.body;
-      console.log(payment);
       const paymentResult = await paymentCollection.insertOne(payment);
       const query = {
         _id: {
@@ -147,6 +150,7 @@ async function run() {
       const deleteResult = await paymentCollection.deleteMany(query);
       res.send({ paymentResult, deleteResult })
     })
+
 
     //reports
     app.post('/reports', async (req, res) => {
@@ -172,6 +176,7 @@ async function run() {
     })
 
 
+
     app.post('/myProducts', async (req, res) => {
       const report = req.body;
       const result = await myProductCollection.insertOne(report);
@@ -195,6 +200,8 @@ async function run() {
     })
 
 
+
+
     app.post('/members', async (req, res) => {
       const member = req.body;
       const query = { email: member.email };
@@ -206,7 +213,7 @@ async function run() {
       res.send(result);
     })
 
-    app.get('/members', verifyAdmin, verifyToken, async (req, res) => {
+    app.get('/members', verifyToken, verifyAdmin, async (req, res) => {
       const result = await memberCollection.find().toArray();
       res.send(result);
     });
@@ -214,19 +221,19 @@ async function run() {
 
     app.patch('/members/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
       const updatedDoc = {
-        $set: { role: 'admin' }
+        $set: { role: "admin" }
       };
-      const result = await memberCollection.updateOne({ _id: id }, updatedDoc);
-      res.send(result);
+      const result = await memberCollection.updateOne(filter, updatedDoc);
+      res.send(result)
     });
 
-    app.get('/members/admin/:email', verifyToken, verifyAdmin, async (req, res) => {
+    app.get('/members/admin/:email', verifyToken, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ message: 'forbidden access' })
       }
-
       const query = { email: email };
       const member = await memberCollection.findOne(query);
       let admin = false;
