@@ -91,21 +91,31 @@ async function run() {
           return res.status(403).send({ message: 'forbidden' })
         }
         req.decoded = decoded;
-        console.log('decoded token', decoded);
         next();
       })
     }
+
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded?.email;
-      console.log('Decoded token email:', email);
+      console.log( email);
       const query = { email: email };
       const member = await memberCollection.findOne(query);
-      console.log("Admin Check:", member);
       if (!member || member.role !== "admin") {
         return res.status(403).send({ message: 'admin only' });
       }
       next();
     }
+    const verifyModerator = async (req, res, next) => {
+      const email = req.decoded?.email;
+      console.log( email);
+      const query = { email: email };
+      const member = await memberCollection.findOne(query);
+      if (!member || member.role !== "moderator") {
+        return res.status(403).send({ message: 'moderator only' });
+      }
+      next();
+    }
+
 
 
     //search functionality
@@ -162,13 +172,13 @@ async function run() {
       const result = await reportCollection.find().toArray();
       res.send(result);
     })
-    app.get('/reports/:id', async (req, res) => {
+    app.get('/reports/:id',verifyToken, verifyModerator, async (req, res) => {
       const productId = req.params.id;
       const query = { _id: productId };
       const result = await myProductCollection.findOne(query);
       res.send(result);
     })
-    app.delete('/reports/:id', async (req, res) => {
+    app.delete('/reports/:id',verifyToken, verifyModerator, async (req, res) => {
       const id = req.params.id;
       const query = { _id: id }
       const result = await reportCollection.deleteOne(query);
@@ -218,7 +228,6 @@ async function run() {
       res.send(result);
     });
 
-
     app.patch('/members/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -241,6 +250,32 @@ async function run() {
         admin = member.role === 'admin';
       }
       res.send({ admin })
+    })
+
+
+
+    app.patch('/members/moderator/:id', verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: { role: "moderator" }
+      };
+      const result = await memberCollection.updateOne(filter, updatedDoc);
+      res.send(result)
+    });
+
+    app.get('/members/moderator/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: 'forbidden access' })
+      }
+      const query = { email: email };
+      const member = await memberCollection.findOne(query);
+      let moderator = false;
+      if (member) {
+        moderator = member.role === 'moderator';
+      }
+      res.send({ moderator })
     })
 
 
